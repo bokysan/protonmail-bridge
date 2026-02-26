@@ -1,6 +1,8 @@
 # Build stage for supervisord
 FROM golang:1.26 AS go-builder
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && apt-get install -y \
     git \
     jq \
@@ -13,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     echo "=== Build dependencies installed ==="
 
 FROM go-builder AS supervisord-builder
+ARG TARGETARCH
+ARG TARGETOS
 
 # Clone and build supervisord (ochinchina version - compatible with Python supervisord config)
 RUN git clone https://github.com/ochinchina/supervisord.git /supervisord && \
@@ -33,11 +37,16 @@ RUN echo "=== Fetching latest ProtonMail Bridge version ===" && \
 RUN git clone --depth 1 --branch $(cat /tmp/bridge_version.txt) https://github.com/ProtonMail/proton-bridge.git
 WORKDIR /tmp/proton-bridge
 RUN echo "=== Building ProtonMail Bridge ===" && \
-    BUILD_FLAGS="-v" make -d build-nogui vault-editor && \
-    echo "=== Build ProtonMail Bridge complete ==="
+    set -x && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} BUILD_FLAGS="-v" make build-nogui vault-editor 2>&1 | tee /tmp/build.log && \
+    echo "=== Build ProtonMail Bridge complete ===" && \
+    du -sh /tmp/proton-bridge && \
+    echo "Build completed successfully"
 
 # Final image
 FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -69,8 +78,6 @@ RUN TINI_VERSION=v0.19.0 && \
     echo "=== tini installed ==="
 
 # Copy supervisord from builder
-RUN 
-
 COPY --from=supervisord-builder /supervisord-bin /usr/local/bin/supervisord
 COPY --from=protonmail-builder /tmp/proton-bridge/bridge /usr/lib/protonmail-bridge/bridge
 COPY --from=protonmail-builder /tmp/proton-bridge/proton-bridge /usr/lib/protonmail-bridge/proton-bridge
