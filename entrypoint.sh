@@ -16,5 +16,5 @@ elif [[ $# -eq 0 ]]; then
     exec /usr/local/bin/supervisord -c /etc/supervisord.conf
 else
     # Pass all arguments directly to protonmail-bridge --cli
-    exec /opt/protonmail/proton-bridge --cli "$@"
+    exec /bin/proton-bridge --cli "$@"
 fi
