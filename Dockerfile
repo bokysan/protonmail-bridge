@@ -25,14 +25,16 @@ RUN git clone https://github.com/ochinchina/supervisord.git /supervisord && \
 FROM go-builder AS protonmail-builder
 
 # Fetch the latest bridge version from GitHub API and build from source
-RUN BRIDGE_VERSION=$(curl -s --connect-timeout 5 --max-time 10 --retry 3 --retry-all-errors https://api.github.com/repos/ProtonMail/proton-bridge/releases/latest | jq -r '.tag_name') && \
-    cd /tmp && \
-    git clone --depth 1 --branch ${BRIDGE_VERSION} https://github.com/ProtonMail/proton-bridge.git && \
-    cd proton-bridge && \
-    \
-    echo "=== Building ProtonMail Bridge ${BRIDGE_VERSION} ===" && \
+WORKDIR /tmp
+RUN echo "=== Fetching latest ProtonMail Bridge version ===" && \
+    BRIDGE_VERSION=$(curl -s --connect-timeout 5 --max-time 10 --retry 3 --retry-all-errors https://api.github.com/repos/ProtonMail/proton-bridge/releases/latest | jq -r '.tag_name') && \
+    printf '%s' "${BRIDGE_VERSION}" > /tmp/bridge_version.txt && \
+    echo "=== Latest ProtonMail Bridge version: ${BRIDGE_VERSION} ==="
+RUN git clone --depth 1 --branch $(</tmp/bridge_version.txt) https://github.com/ProtonMail/proton-bridge.git
+WORKDIR /tmp/proton-bridge
+RUN echo "=== Building ProtonMail Bridge ===" && \
     make build-nogui vault-editor && \
-    echo "=== Build ProtonMail Bridge ${BRIDGE_VERSION} complete ==="
+    echo "=== Build ProtonMail Bridge complete ==="
 
 # Final image
 FROM debian:bookworm-slim
