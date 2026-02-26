@@ -1,0 +1,52 @@
+name: Check ProtonMail Bridge Version
+
+on:
+  schedule:
+    # Run weekly on Monday at 3:00 AM UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest ProtonMail Bridge version
+        id: bridge-version
+        run: |
+          BRIDGE_VERSION=$(curl -s https://api.github.com/repos/ProtonMail/proton-bridge/releases/latest | jq -r '.tag_name')
+          echo "version=${BRIDGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "Latest ProtonMail Bridge version: ${BRIDGE_VERSION}"
+
+      - name: Get latest repository tag
+        id: repo-version
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          echo "version=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "Latest repository tag: ${LATEST_TAG}"
+
+      - name: Compare versions and create tag
+        env:
+          BRIDGE_VERSION: ${{ steps.bridge-version.outputs.version }}
+          REPO_VERSION: ${{ steps.repo-version.outputs.version }}
+        run: |
+          echo "ProtonMail Bridge version: ${BRIDGE_VERSION}"
+          echo "Repository version: ${REPO_VERSION}"
+          
+          if [ "${BRIDGE_VERSION}" != "${REPO_VERSION}" ]; then
+            echo "New version detected! Creating tag ${BRIDGE_VERSION}"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "${BRIDGE_VERSION}" -m "ProtonMail Bridge ${BRIDGE_VERSION}"
+            git push origin "${BRIDGE_VERSION}"
+            echo "Tag ${BRIDGE_VERSION} created and pushed"
+          else
+            echo "No new version. Current version ${REPO_VERSION} is up to date."
+          fi
