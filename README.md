@@ -4,15 +4,15 @@ A lightweight, production-ready Docker image for [ProtonMail Bridge](https://git
 
 ## Features
 
-- **Minimal base image**: Uses `fedora:latest` with minimal dependencies
-- **Automatic version detection**: Fetches the latest ProtonMail Bridge version from GitHub API during build
+- **Lightweight Debian base**: Uses `debian:bookworm-slim` for minimal footprint
+- **Self-contained builds**: Creates multi-stage builds that compile ProtonMail Bridge from source
+- **Multi-architecture support**: Builds for both `linux/amd64` and `linux/arm64` architectures
 - **Automatic version tracking**: Weekly checks for new ProtonMail Bridge releases and auto-tags this repository
-- **Non-root execution**: Both ProtonMail Bridge and socat run as unprivileged users
+- **Non-root execution**: Both ProtonMail Bridge and socat run as unprivileged users using `gosu`
 - **Process supervision**: Uses [supervisord (Go)](https://github.com/ochinchina/supervisord) built from source for process management with automatic restart on failure
 - **Proper signal handling**: Uses [tini](https://github.com/krallin/tini) as PID 1 for correct signal propagation
 - **Clean logging**: All logs directed to stdout for easy container log viewing
 - **No privileged ports**: socat runs on high-numbered ports (8025 for SMTP, 8143 for IMAP)
-- **AMD64 only**: Built specifically for x86_64 architecture to match ProtonMail Bridge releases
 
 ## Ports
 
@@ -140,16 +140,28 @@ volumes:
 ### Local Build
 
 ```bash
+# For current architecture (amd64 or arm64)
 docker build -t protonmail-bridge .
+
+# For specific architecture using buildx
+docker buildx build --platform linux/amd64 -t protonmail-bridge .
+docker buildx build --platform linux/arm64 -t protonmail-bridge .
 ```
 
-The build uses a multi-stage process:
-1. **Builder stage**: Compiles supervisord from source using Go
-2. **Main stage**: 
-   - Downloads the latest ProtonMail Bridge version from GitHub
-   - Copies the compiled supervisord binary
-   - Installs tini for proper signal handling
-   - Sets up non-root users (protonmail and socat)
+The build uses a sophisticated multi-stage process:
+
+1. **Supervisord Builder Stage**: Compiles supervisord from source using Go
+2. **ProtonMail Bridge Builder Stage**:
+   - Fetches the latest ProtonMail Bridge release from GitHub
+   - Clones the repository at the release tag
+   - Compiles ProtonMail Bridge from source with Go
+3. **Final Image Stage**:
+   - Debian slim base image for minimal footprint
+   - Copies pre-compiled supervisord binary
+   - Copies pre-compiled ProtonMail Bridge binary to `/usr/lib/protonmail-bridge/bridge`
+   - Downloads architecture-appropriate `gosu` and `tini` binaries
+   - Sets up non-root users with proper permissions
+   - Copies configuration and entrypoint script
 
 ### CI/CD with GitHub Actions
 
@@ -171,7 +183,10 @@ This repository includes automated Docker image builds and version tracking usin
 
 #### Platform Support
 
-All Docker images are built for `linux/amd64` only, as ProtonMail Bridge does not provide ARM64 builds. This ensures compatibility when building on macOS with Apple Silicon using Docker's emulation.
+Docker images are built for both **`linux/amd64`** and **`linux/arm64`** architectures, enabling seamless usage on:
+- x86_64/AMD64 machines
+- ARM64 machines (including Apple Silicon/M-series)
+- Docker Desktop on macOS with Apple Silicon
 
 #### Manual Release
 
