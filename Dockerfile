@@ -100,5 +100,5 @@ VOLUME ["/home/protonmail"]
 EXPOSE 8025 8143
 
 # Use tini as the entrypoint to handle signals properly
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]
+CMD []
