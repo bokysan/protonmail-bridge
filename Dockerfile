@@ -20,8 +20,8 @@ RUN dnf install -y \
     && dnf clean all
 
 # Install tini
-RUN curl -L https://github.com/krallin/tini/releases/download/v0.19.0/tini -o /tini && \
-    chmod +x /tini
+RUN curl -L https://github.com/krallin/tini/releases/download/v0.19.0/tini -o /sbin/tini && \
+    chmod +x /sbin/tini
 
 # Copy supervisord from builder stage
 COPY --from=supervisord-builder /supervisord-bin /usr/local/bin/supervisord
@@ -46,7 +46,7 @@ RUN groupadd -r protonmail && \
 COPY supervisord.conf /etc/supervisord.conf
 
 # Copy gpgparams for initialization
-COPY gpgparams /home/protonmail/gpgparams
+COPY gpgparams /protonmail/gpgparams
 
 COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -58,4 +58,5 @@ VOLUME ["/home/protonmail"]
 EXPOSE 8025 8143
 
 # Use tini as the entrypoint to handle signals properly
-ENTRYPOINT ["/tini", "--", "bash", "/entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]
+CMD []
