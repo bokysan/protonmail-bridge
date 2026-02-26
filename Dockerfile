@@ -1,9 +1,16 @@
+# syntax=docker/dockerfile:1
+
 # Build stage for supervisord
 FROM golang:1.26 AS go-builder
 
+ARG TARGETARCH=amd64
+ARG TARGETOS=linux
+
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETOS}-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETOS}-${TARGETARCH},sharing=locked \
+    apt-get update && apt-get install -y \
     git \
     jq \
     build-essential \
@@ -11,15 +18,16 @@ RUN apt-get update && apt-get install -y \
     libsecret-1-dev \
     libfido2-dev \
     libcbor-dev \
-    && rm -rf /var/lib/apt/lists/* && \
-    echo "=== Build dependencies installed ==="
+    && echo "=== Build dependencies installed ==="
 
 FROM go-builder AS supervisord-builder
 ARG TARGETARCH
 ARG TARGETOS
 
 # Clone and build supervisord (ochinchina version - compatible with Python supervisord config)
-RUN git clone https://github.com/ochinchina/supervisord.git /supervisord && \
+RUN --mount=type=cache,target=/root/.cache/go-build,id=go-build-${TARGETOS}-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/go/pkg/mod,id=go-mod-${TARGETOS}-${TARGETARCH},sharing=locked \
+    git clone https://github.com/ochinchina/supervisord.git /supervisord && \
     cd /supervisord && \
     echo "=== Building supervisord ===" && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /supervisord-bin && \
@@ -27,6 +35,9 @@ RUN git clone https://github.com/ochinchina/supervisord.git /supervisord && \
 
 # Build stage for ProtonMail Bridge
 FROM go-builder AS protonmail-builder
+
+ARG TARGETARCH=amd64
+ARG TARGETOS=linux
 
 # Fetch the latest bridge version from GitHub API and build from source
 WORKDIR /tmp
@@ -36,7 +47,14 @@ RUN echo "=== Fetching latest ProtonMail Bridge version ===" && \
     echo "=== Latest ProtonMail Bridge version: ${BRIDGE_VERSION} ==="
 RUN git clone --depth 1 --branch $(cat /tmp/bridge_version.txt) https://github.com/ProtonMail/proton-bridge.git
 WORKDIR /tmp/proton-bridge
-RUN echo "=== Building ProtonMail Bridge ===" && \
+RUN --mount=type=cache,target=/root/.cache/go-build,id=go-build-${TARGETOS}-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/go/pkg/mod,id=go-mod-${TARGETOS}-${TARGETARCH},sharing=locked \
+    echo "=== Downloading dependencies ===" && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go mod download -x && \
+    echo "=== Dependencies downloaded ==="
+RUN --mount=type=cache,target=/root/.cache/go-build,id=go-build-${TARGETOS}-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/go/pkg/mod,id=go-mod-${TARGETOS}-${TARGETARCH},sharing=locked \
+    echo "=== Building ProtonMail Bridge ===" && \
     set -x && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} BUILD_FLAGS="-v" make build-nogui vault-editor 2>&1 | tee /tmp/build.log && \
     echo "=== Build ProtonMail Bridge complete ===" && \
@@ -46,10 +64,15 @@ RUN echo "=== Building ProtonMail Bridge ===" && \
 # Final image
 FROM debian:bookworm-slim
 
+ARG TARGETARCH=amd64
+ARG TARGETOS=linux
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETOS}-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETOS}-${TARGETARCH},sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     socat \
     curl \
     jq \
@@ -59,11 +82,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfido2-1 \
     libcbor0.8 \
     ca-certificates \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    echo "=== Runtime dependencies installed ==="
+    && echo "=== Runtime dependencies installed ==="
 
 # Install architecture-appropriate gosu binary
-ARG TARGETARCH=amd64
 RUN GOSU_VERSION=1.17 && \
     GOSU_ARCH=${TARGETARCH} && \
     curl -L --connect-timeout 5 --max-time 10 --retry 3 --retry-all-errors https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${GOSU_ARCH} -o /usr/local/bin/gosu && \
