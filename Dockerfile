@@ -50,13 +50,13 @@ WORKDIR /tmp/proton-bridge
 RUN --mount=type=cache,target=/root/.cache/go-build,id=go-build-${TARGETOS}-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/go/pkg/mod,id=go-mod-${TARGETOS}-${TARGETARCH},sharing=locked \
     echo "=== Downloading dependencies ===" && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go mod download -x && \
+    go mod download -x && \
     echo "=== Dependencies downloaded ==="
 RUN --mount=type=cache,target=/root/.cache/go-build,id=go-build-${TARGETOS}-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/go/pkg/mod,id=go-mod-${TARGETOS}-${TARGETARCH},sharing=locked \
     echo "=== Building ProtonMail Bridge ===" && \
     set -x && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} BUILD_FLAGS="-v" make build-nogui vault-editor 2>&1 | tee /tmp/build.log && \
+    BUILD_FLAGS="-v" make build-nogui vault-editor 2>&1 | tee /tmp/build.log && \
     echo "=== Build ProtonMail Bridge complete ===" && \
     du -sh /tmp/proton-bridge && \
     echo "Build completed successfully"
