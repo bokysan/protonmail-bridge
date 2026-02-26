@@ -21,6 +21,11 @@ RUN dnf install -y \
     ca-certificates \
     && dnf clean all
 
+# Install gosu (lightweight Go-based sudo alternative)
+RUN GOSU_VERSION=1.17 && \
+    curl -L https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64 -o /usr/local/bin/gosu && \
+    chmod +x /usr/local/bin/gosu
+
 # Install tini
 RUN curl -L https://github.com/krallin/tini/releases/download/v0.19.0/tini -o /sbin/tini && \
     chmod +x /sbin/tini
