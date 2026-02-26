@@ -33,7 +33,7 @@ RUN echo "=== Fetching latest ProtonMail Bridge version ===" && \
 RUN git clone --depth 1 --branch $(cat /tmp/bridge_version.txt) https://github.com/ProtonMail/proton-bridge.git
 WORKDIR /tmp/proton-bridge
 RUN echo "=== Building ProtonMail Bridge ===" && \
-    make build-nogui vault-editor && \
+    BUILD_FLAGS="-v" make -d build-nogui vault-editor && \
     echo "=== Build ProtonMail Bridge complete ==="
 
 # Final image
