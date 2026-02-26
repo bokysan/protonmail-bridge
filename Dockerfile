@@ -17,6 +17,8 @@ RUN dnf install -y \
     curl \
     jq \
     wget \
+    pass \
+    ca-certificates \
     && dnf clean all
 
 # Install tini
